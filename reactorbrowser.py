@@ -25,7 +25,7 @@ class ReactorNetClient(QObject):
     error_occurred = pyqtSignal(str, str)       # url, error_message
     status_changed = pyqtSignal(str)            # status text
     
-    def __init__(self, relay_url="wss://reactornet-relay.onrender.com"):
+    def __init__(self, relay_url="wss://reactornet.onrender.com"):
         super().__init__()
         self.relay_url = relay_url
         self.ws = None
