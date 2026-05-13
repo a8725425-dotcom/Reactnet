@@ -165,12 +165,19 @@ if sock is not None:
 
                 if data.get('type') == 'response':
                     request_id = data.get('request_id')
+                    logger.info(f"📥 Host '{site_id}' got response for {request_id}")
+
                     with pending_lock:
                         if request_id in pending_requests:
                             callback = pending_requests[request_id]
                             callback(data.get('response', {}))
                             del pending_requests[request_id]
-                            logger.debug(f"📤 Response sent for {request_id}")
+                            logger.info(f"✅ Routed response to visitor for {request_id}")
+
+                        else:
+                            logger.warning(
+                                f"⚠️ No pending visitor request for request_id={request_id} (host={site_id})"
+                            )
 
                 elif data.get('type') == 'ping':
                     ws.send(json.dumps({'type': 'pong'}))
@@ -201,10 +208,14 @@ if sock is not None:
                                 'type': 'error',
                                 'message': f'Site "{site_id}.reactor" is offline'
                             }))
+                            logger.warning(f"⚠️ Visitor request for offline site '{site_id}'")
                             continue
                         host_ws = hosts[site_id]
 
                     request_id = ReactorNetRelay.generate_request_id()
+                    logger.info(
+                        f"🚀 Forward request visitor->{site_id}.reactor request_id={request_id} url={data.get('url','/')}"
+                    )
 
                     import threading
                     response_event = threading.Event()
@@ -229,6 +240,7 @@ if sock is not None:
 
                     timeout = 30
                     if response_event.wait(timeout):
+                        logger.info(f"📤 Sending response back to visitor for {request_id}")
                         ws.send(json.dumps({
                             'type': 'response',
                             'html': response_data.get('html', ''),
@@ -236,16 +248,23 @@ if sock is not None:
                             'headers': response_data.get('headers', {})
                         }))
                     else:
+                        logger.warning(f"⏰ Timeout waiting host response for {request_id}")
                         ws.send(json.dumps({
                             'type': 'error',
                             'message': 'Request timeout (host took too long to respond)'
                         }))
 
         except Exception as e:
+            # Нормальное закрытие соединения (например code 1000) — не считаем ошибкой.
+            msg = str(e)
+            if "Connection closed: 1000" in msg or "1000" in msg:
+                logger.info(f"🔌 Visit disconnected: {msg}")
+                return
+
             logger.error(f"❌ Visit error: {e}")
             try:
                 ws.send(json.dumps({'type': 'error', 'message': str(e)}))
-            except Exception:
+            except:
                 pass
 
 
@@ -254,4 +273,3 @@ if __name__ == '__main__':
     import os
     port = int(os.environ.get('PORT', 10000))
     app.run(host='0.0.0.0', port=port, debug=False)
-
