@@ -240,10 +240,14 @@ if sock is not None:
 
                     timeout = 30
                     if response_event.wait(timeout):
-                        logger.info(f"📤 Sending response back to visitor for {request_id}")
+                        html_out = response_data.get('html', '') or ''
+                        preview = str(html_out)[:80].replace("\n", " ").replace("\r", " ")
+                        logger.info(
+                            f"📤 Sending response back to visitor for {request_id} html_len={len(html_out)} preview={preview}"
+                        )
                         ws.send(json.dumps({
                             'type': 'response',
-                            'html': response_data.get('html', ''),
+                            'html': html_out,
                             'status': response_data.get('status', 200),
                             'headers': response_data.get('headers', {})
                         }))
